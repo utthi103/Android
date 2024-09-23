@@ -5,16 +5,16 @@ void main() {
     MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color.fromARGB(255, 5, 11, 5),
         appBar: AppBar(
           title: const Text(
             "I Am Rich",
             style: TextStyle(
               fontSize: 30,
-              color: Colors.orange,
+              color: Color.fromARGB(255, 172, 103, 12),
             ),
           ),
-          backgroundColor: const Color.fromARGB(255, 7, 4, 2),
+          backgroundColor: const Color.fromARGB(255, 30, 12, 8),
           elevation: 0,
           centerTitle: true,
           // leading: Icon(Icons.arrow_back_ios),
