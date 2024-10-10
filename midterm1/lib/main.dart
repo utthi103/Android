@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:midterm1/login.dart';
+import 'package:midterm1/realtimedatabase.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -1,22 +1,66 @@
+import 'dart:io';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_database/ui/firebase_animated_list.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 class realtimedatabase extends StatefulWidget {
   const realtimedatabase({super.key});
 
   @override
-  State<realtimedatabase> createState() => _RealTimedatabaseState();
+  State<realtimedatabase> createState() => _RealtimeDatabaseState();
 }
 
 final databaseRf = FirebaseDatabase.instance.ref("product");
+final ImagePicker _imagePicker = ImagePicker();
 
-class _RealTimedatabaseState extends State<realtimedatabase> {
+class _RealtimeDatabaseState extends State<realtimedatabase> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
   final TextEditingController categoryController = TextEditingController();
-  final TextEditingController imagController = TextEditingController();
+  String? imgUrl; // Biến để lưu URL của hình ảnh đã chọn
+
+  Future<void> pickImage() async {
+    try {
+      XFile? res = await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (res != null) {
+        // Tải lên hình ảnh và cập nhật imgUrl
+        imgUrl = await uploadImageToFirebase(File(res.path));
+        setState(() {}); // Cập nhật UI
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text("Error picking image: $e"),
+        ),
+      );
+    }
+  }
+
+  Future<String?> uploadImageToFirebase(File image) async {
+    try {
+      Reference reference = FirebaseStorage.instance
+          .ref()
+          .child("images/${DateTime.now().microsecondsSinceEpoch}.png");
+
+      // Tải lên file ảnh
+      await reference.putFile(image);
+
+      // Lấy URL của ảnh đã tải lên
+      return await reference
+          .getDownloadURL(); // Lưu URL hình ảnh vào biến imgUrl
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text("Fail to upload image: $e"),
+        ),
+      );
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,164 +70,192 @@ class _RealTimedatabaseState extends State<realtimedatabase> {
         centerTitle: true,
         backgroundColor: Colors.blue,
         title: const Text(
-          "Data of shop",
+          "Data of Shop",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
       body: Column(
         children: [
           Expanded(
-              child: FirebaseAnimatedList(
-            query: databaseRf,
-            itemBuilder: (context, snapshot, animation, index) {
-              return Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                margin: const EdgeInsets.all(10),
-                child: ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  leading: CircleAvatar(
-                    backgroundImage: NetworkImage(
-                        snapshot.child("image_url").value.toString()),
-                    child: snapshot.child("image_url").value == null
-                        ? Text((index + 1).toString())
-                        : null,
+            child: FirebaseAnimatedList(
+              query: databaseRf,
+              itemBuilder: (context, snapshot, animation, index) {
+                String? imageUrl = snapshot.child("image").value?.toString();
+                return Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
                   ),
-                  title: Text(
-                    snapshot.child("name").value.toString(),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
+                  margin: const EdgeInsets.all(10),
+                  child: ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    leading: CircleAvatar(
+                      radius: 30,
+                      backgroundImage:
+                          imageUrl != null ? NetworkImage(imageUrl) : null,
+                      child: imageUrl == null
+                          ? const Icon(
+                              Icons.person,
+                              size: 30,
+                              color: Colors.grey,
+                            )
+                          : null,
+                    ),
+                    title: Text(
+                      snapshot.child("name").value.toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(snapshot.child("category").value.toString()),
+                        Text(
+                          'Giá: ${snapshot.child("price").value.toString()} VND',
+                          style: const TextStyle(
+                              color: Colors.green, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () {
+                            // Mở dialog edit
+                            nameController.text =
+                                snapshot.child("name").value.toString();
+                            priceController.text =
+                                snapshot.child("price").value.toString();
+                            categoryController.text =
+                                snapshot.child("category").value.toString();
+                            imgUrl = snapshot
+                                .child("image")
+                                .value
+                                ?.toString(); // Đặt URL hình ảnh
+
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return myDialog(
+                                  context: context,
+                                  name: "Update Product",
+                                  address: "Update",
+                                  onPressed: () async {
+                                    // Chọn ảnh mới
+                                    await pickImage();
+
+                                    // Cập nhật sản phẩm
+                                    await databaseRf
+                                        .child(snapshot
+                                            .child("id")
+                                            .value
+                                            .toString())
+                                        .update({
+                                      'category':
+                                          categoryController.text.toString(),
+                                      'image': imgUrl, // Cập nhật URL hình ảnh
+                                      'name': nameController.text.toString(),
+                                      'price': priceController.text.toString(),
+                                    });
+
+                                    Navigator.pop(context);
+                                  },
+                                );
+                              },
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  title: const Text('Delete Product'),
+                                  content: const Text(
+                                      'Are you sure you want to delete this product?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        databaseRf
+                                            .child(snapshot
+                                                .child("id")
+                                                .value
+                                                .toString())
+                                            .remove();
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(snapshot.child("category").value.toString()),
-                      Text(
-                        'Giá: ${snapshot.child("price").value.toString()} VND', // Thêm đơn vị tiền tệ ở đây
-                        style: const TextStyle(
-                            color: Colors.green, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-// Thay thế PopupMenuButton bằng Row trong trailing của ListTile
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () {
-                          // Mở dialog edit
-                          nameController.text =
-                              snapshot.child("name").value.toString();
-                          priceController.text =
-                              snapshot.child("price").value.toString();
-                          categoryController.text =
-                              snapshot.child("category").value.toString();
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return mydialog(
-                                context: context,
-                                name: "Update product",
-                                address: "Update",
-                                onPressed: () {
-                                  databaseRf
-                                      .child(
-                                          snapshot.child("id").value.toString())
-                                      .update({
-                                    'category':
-                                        categoryController.text.toString(),
-                                    'image': "sahd",
-                                    'name': nameController.text.toString(),
-                                    'price': priceController.text.toString(),
-                                  });
-                                  Navigator.pop(context);
-                                },
-                              );
-                            },
-                          );
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          // Hiển thị hộp thoại xác nhận trước khi xóa
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: Text('Delete Product'),
-                                content: const Text(
-                                    'Are you sure you want to delete this product?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(),
-                                    child: Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      databaseRf
-                                          .child(snapshot
-                                              .child("id")
-                                              .value
-                                              .toString())
-                                          .remove();
-                                      Navigator.of(context).pop();
-                                    },
-                                    child: Text('Delete'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ))
+                );
+              },
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           nameController.clear();
           categoryController.clear();
-          imagController.clear();
           priceController.clear();
+          imgUrl = null; // Reset imgUrl khi thêm sản phẩm
           showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return mydialog(
-                  context: context,
-                  name: "Add product",
-                  address: "Add",
-                  onPressed: () {
+            context: context,
+            builder: (BuildContext context) {
+              return myDialog(
+                context: context,
+                name: "Add Product",
+                address: "Add",
+                onPressed: () async {
+                  if (imgUrl != null) {
                     final id = DateTime.now().microsecondsSinceEpoch.toString();
-                    databaseRf.child(id).set({
+                    // Lưu sản phẩm vào Firebase Realtime Database
+                    await databaseRf.child(id).set({
                       'category': categoryController.text.toString(),
-                      'image': "sahd",
+                      'image': imgUrl, // Lưu URL hình ảnh
                       'name': nameController.text.toString(),
                       'price': priceController.text.toString(),
                       'id': id
                     });
                     Navigator.pop(context);
-                  },
-                );
-              });
+                  } else {
+                    // ScaffoldMessenger.of(context).showSnackBar(
+                    //   SnackBar(
+                    //     backgroundColor: Colors.red,
+                    //     content: const Text("Please select an image!"),
+                    //   ),
+                    // );
+                  }
+                },
+              );
+            },
+          );
         },
         child: const Icon(Icons.add),
       ),
     );
   }
 
-  Dialog mydialog({
+  Dialog myDialog({
     required BuildContext context,
     required String name,
     required String address,
@@ -229,37 +301,48 @@ class _RealTimedatabaseState extends State<realtimedatabase> {
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
-                labelText: "Enter name product",
-                hintText: "eg. Dell",
+                labelText: "Enter Product Name",
+                hintText: "e.g., Dell",
               ),
             ),
             TextField(
               controller: priceController,
               decoration: const InputDecoration(
-                labelText: "Enter price product",
+                labelText: "Enter Product Price",
                 hintText: "1200000",
               ),
             ),
             TextField(
               controller: categoryController,
               decoration: const InputDecoration(
-                labelText: "Enter category",
-                hintText: "eg. Máy tính",
+                labelText: "Enter Category",
+                hintText: "e.g., Laptop",
               ),
             ),
-            // TextField(
-            //   controller: addressController,
-            //   decoration: const InputDecoration(
-            //     labelText: "Enter the Address",
-            //     hintText: "eg. NewYork",
-            //   ),
-            // ),
-            const SizedBox(height: 20),
+            GestureDetector(
+              onTap: () {
+                pickImage(); // Gọi hàm chọn hình ảnh
+              },
+              child: const Icon(
+                Icons.camera_alt,
+                color: Colors.blue,
+                size: 30,
+              ),
+            ),
+            // Hiển thị hình ảnh nếu có
+            if (imgUrl != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Image.network(
+                  imgUrl!,
+                  height: 100,
+                  fit: BoxFit.cover,
+                ),
+              ),
             ElevatedButton(
               onPressed: onPressed,
               child: Text(address),
             ),
-            const SizedBox(height: 10),
           ],
         ),
       ),
