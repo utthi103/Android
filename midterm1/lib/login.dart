@@ -69,10 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFFB3E5FC),
-              Color(0xFFE1F5FE)
-            ], // Màu xanh nhạt đến trắng
+            colors: [Color(0xFFB3E5FC), Color(0xFFE1F5FE)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

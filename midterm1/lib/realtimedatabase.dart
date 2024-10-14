@@ -81,6 +81,7 @@ class _RealtimeDatabaseState extends State<realtimedatabase> {
               query: databaseRf,
               itemBuilder: (context, snapshot, animation, index) {
                 String? imageUrl = snapshot.child("image").value?.toString();
+// list data
                 return Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
@@ -212,6 +213,7 @@ class _RealtimeDatabaseState extends State<realtimedatabase> {
           ),
         ],
       ),
+//  Add product
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           nameController.clear();
@@ -231,7 +233,7 @@ class _RealtimeDatabaseState extends State<realtimedatabase> {
                     // Lưu sản phẩm vào Firebase Realtime Database
                     await databaseRf.child(id).set({
                       'category': categoryController.text.toString(),
-                      'image': imgUrl, // Lưu URL hình ảnh
+                      'image': imgUrl, // Lưu URL hình ảnh\
                       'name': nameController.text.toString(),
                       'price': priceController.text.toString(),
                       'id': id
